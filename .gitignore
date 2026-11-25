@@ -15,3 +15,4 @@ android/
 ios/
 output/
 .pnpm-debug.log*
+*.apk
