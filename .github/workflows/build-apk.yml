@@ -72,20 +72,19 @@ jobs:
         continue-on-error: true
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.3
-          name: "RV PDF v1.0.3 - Android APK Release (Modal Background Interaction & Scroll Lock)"
+          tag_name: v1.0.4
+          name: "RV PDF v1.0.4 - Android APK (Safe-Area Status Bar Fix & Mobile GPU Optimization)"
           body: |
-            ### 📱 RV PDF v1.0.3 Android APK
+            ### 📱 RV PDF v1.0.4 Android APK
             
-            - 🔒 **Modal Background Interaction & Touch Lock**:
-              - Complete background touch gesture and overscroll lock when modals are open.
-              - Prevents underlying page shifts, accidental taps, or background drag during modal operations.
-              - Smooth, contained independent scrolling for modal content cards.
-            - ⚡ **Enhanced Compress PDF Flow**:
-              - Clean status indicators (removed misleading red alert box).
-              - Full readable file display with formatted size.
-              - Low / Medium / High compression selector with live space savings.
-              - Direct post-compression download.
+            - 🛡️ **Safe-Area Status Bar Fix**: Added `safe-area-header` with `max(calc(env(safe-area-inset-top, 0px) + 8px), 42px)` so status bar indicators (clock, 5G, battery %, notifications) are never covered or clipped.
+            - ⚡ **Mobile GPU & 60fps Optimization**:
+              - Removed heavy 80px-90px Gaussian blur keyframe animations (`ambient-glow-1/2/3`) for buttery smooth scrolling and true deep OLED `#000000` blacks.
+              - Confined card hover transitions to `@media (hover: hover)` to eliminate mobile tap sticky lift.
+              - Added immediate active tap depression (`scale(0.97)`).
+            - 📐 **Clean 2×2 Grid & Modal UI**:
+              - Pure 2×2 tool card grid with zero marketing clutter.
+              - Compress PDF modal with subtle green ready badge and full readable file info.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false

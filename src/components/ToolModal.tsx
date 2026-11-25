@@ -470,9 +470,12 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
 
               {/* Compression Ready Info */}
               {selectedFiles.length > 0 && !downloadUrl && (
-                <div className="px-3.5 py-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-xs">
-                  <span className="text-slate-600 dark:text-slate-400">Original document:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                <div className="px-3.5 py-2.5 rounded-xl bg-ios-green/10 dark:bg-ios-green/15 border border-ios-green/30 flex items-center justify-between text-xs animate-fade-in">
+                  <div className="flex items-center gap-2 text-ios-green font-semibold">
+                    <Icons.CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>Ready to compress</span>
+                  </div>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
                     {pdfEngine.formatFileSize(selectedFiles[0]?.size || 0)}
                   </span>
                 </div>

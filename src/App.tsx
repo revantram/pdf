@@ -71,10 +71,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative min-h-screen bg-[#F2F2F7] dark:bg-[#000000] text-slate-800 dark:text-slate-100 pb-16 overflow-x-hidden selection:bg-ios-blue/20">
-      {/* Subtle Fluid Ambient Lights */}
-      <div className="ambient-glow-1 opacity-50 dark:opacity-30" />
-      <div className="ambient-glow-2 opacity-40 dark:opacity-20" />
-
       {/* Header and Category Tabs */}
       <Navbar
         currentCategory={currentCategory}

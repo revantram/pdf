@@ -30,7 +30,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="w-full z-40 pt-[max(env(safe-area-inset-top,42px),42px)] px-4 sm:px-6 max-w-4xl mx-auto">
+    <header className="w-full z-40 safe-area-header px-4 sm:px-6 max-w-4xl mx-auto">
       <div className="liquid-glass rounded-2xl px-4 py-3 flex items-center justify-between transition-all duration-300">
         
         {/* Brand */}
