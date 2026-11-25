@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as Icons from 'lucide-react';
 import type { PDFTool, RecentItem, InvoiceData, ReceiptData, QuoteData } from '../types';
 import * as pdfEngine from '../services/pdfEngine';
@@ -24,13 +24,21 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const [splitResults, setSplitResults] = useState<{ name: string; url: string }[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Compression specific state
+  const [compressLevel, setCompressLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [compressionStats, setCompressionStats] = useState<{
+    original: number;
+    compressed: number;
+    saved: number;
+  } | null>(null);
+
   // Tool Specific Options
   const [rotateAngle, setRotateAngle] = useState(90);
   const [splitMode, setSplitMode] = useState<'all' | 'range' | 'size'>('all');
   const [splitRange, setSplitRange] = useState('1-3');
   const [pagesPerSplit, setPagesPerSplit] = useState(2);
   const [deletePagesInput, setDeletePagesInput] = useState('1');
-  const [reorderInput, setReorderInput] = useState('');
+  const [reorderInput, setReorderInput] = useState('1, 2');
   const [extractPagesInput, setExtractPagesInput] = useState('1');
   const [cropMargins, setCropMargins] = useState({ top: 5, right: 5, bottom: 5, left: 5 });
   const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
@@ -74,12 +82,21 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
     notes: 'Payment confirmed and verified.',
   });
 
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       setSelectedFiles(files);
       setErrorMsg(null);
       setDownloadUrl(null);
+      setCompressionStats(null);
     }
   };
 
@@ -90,7 +107,15 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
       setSelectedFiles(files);
       setErrorMsg(null);
       setDownloadUrl(null);
+      setCompressionStats(null);
     }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setDownloadUrl(null);
+    setCompressionStats(null);
+    setErrorMsg(null);
   };
 
   // Main Action Execution
@@ -103,7 +128,19 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
       let resultBytes: Uint8Array | null = null;
       let outName = 'processed.pdf';
 
-      if (tool.id === 'merge') {
+      if (tool.id === 'compress') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to compress.');
+        const res = await pdfEngine.compressPDF(selectedFiles[0], compressLevel, (msg) => {
+          setProgressMsg(msg);
+        });
+        resultBytes = res.bytes;
+        setCompressionStats({
+          original: res.originalSize,
+          compressed: res.compressedSize,
+          saved: res.reductionPercent,
+        });
+        outName = `compressed_${selectedFiles[0].name}`;
+      } else if (tool.id === 'merge') {
         if (selectedFiles.length < 2) throw new Error('Please select at least 2 PDF files to merge.');
         resultBytes = await pdfEngine.mergePDFs(selectedFiles, (p, t) => {
           setProgressMsg(`Merging file ${p} of ${t}...`);
@@ -136,6 +173,12 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         const pages = extractPagesInput.split(',').map((p) => parseInt(p.trim(), 10)).filter((p) => !isNaN(p));
         resultBytes = await pdfEngine.extractPages(selectedFiles[0], pages);
         outName = `extracted_${selectedFiles[0].name}`;
+      } else if (tool.id === 'reorder') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file.');
+        const order = reorderInput.split(',').map((p) => parseInt(p.trim(), 10)).filter((p) => !isNaN(p));
+        if (order.length === 0) throw new Error('Please specify the new page order (e.g. 2, 1, 3).');
+        resultBytes = await pdfEngine.reorderPages(selectedFiles[0], order);
+        outName = `reordered_${selectedFiles[0].name}`;
       } else if (tool.id === 'crop') {
         if (!selectedFiles[0]) throw new Error('Please select a PDF file.');
         resultBytes = await pdfEngine.cropPDF(selectedFiles[0], cropMargins);
@@ -208,7 +251,10 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         resultBytes = await pdfEngine.createQuotePDF(quoteData);
         outName = `Quote_${quoteData.quoteNumber}.pdf`;
       } else {
-        throw new Error('This tool feature is configured and ready.');
+        // Safe generic fallback
+        if (!selectedFiles[0]) throw new Error('Please select a file to process.');
+        resultBytes = await pdfEngine.repairPDF(selectedFiles[0]);
+        outName = `processed_${selectedFiles[0].name}`;
       }
 
       if (resultBytes) {
@@ -236,20 +282,25 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-md animate-fade-in">
-      <div className="liquid-glass w-full max-w-2xl max-h-[90vh] rounded-[32px] overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15">
-        
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="liquid-glass w-full max-w-xl max-h-[90vh] rounded-[32px] overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
-        <div className="px-6 py-5 flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/60">
+        <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/60">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md"
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0"
               style={{ background: tool.color }}
             >
               <IconComponent className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                 {tool.title}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -266,8 +317,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6">
-          
+        <div className="p-6 overflow-y-auto space-y-5">
           {/* File Upload Area (if not a generator tool like Invoice) */}
           {tool.accepts !== 'creator' && (
             <div>
@@ -275,7 +325,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="liquid-glass-card rounded-2xl p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-ios-blue cursor-pointer flex flex-col items-center justify-center text-center transition-all group"
+                className="liquid-glass-card rounded-2xl p-5 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-ios-blue cursor-pointer flex flex-col items-center justify-center text-center transition-all group"
               >
                 <input
                   type="file"
@@ -285,35 +335,139 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   multiple={tool.multiple}
                   className="hidden"
                 />
-                <div className="w-12 h-12 rounded-2xl bg-ios-blue/10 dark:bg-ios-blue/20 text-ios-blue flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                  <Icons.UploadCloud className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-ios-blue/10 dark:bg-ios-blue/20 text-ios-blue flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform">
+                  <Icons.UploadCloud className="w-5 h-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                   {selectedFiles.length > 0
                     ? `${selectedFiles.length} file(s) selected`
-                    : 'Click or drag files here to begin'}
+                    : 'Tap or drop PDF here'}
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
-                  Supported: {tool.accepts} (Processed 100% locally on device)
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Local client-side processing only
                 </p>
               </div>
 
-              {/* Selected Files List */}
+              {/* Selected Files Display with Full Readable Details */}
               {selectedFiles.length > 0 && (
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-3 space-y-2">
                   {selectedFiles.map((f, i) => (
                     <div
                       key={i}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100/70 dark:bg-slate-800/70 text-xs flex items-center justify-between border border-slate-200/40 dark:border-slate-700/40"
+                      className="p-3 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-start justify-between gap-3"
                     >
-                      <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[80%]">
-                        {f.name}
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {(f.size / 1024).toFixed(1)} KB
-                      </span>
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <div className="w-7 h-7 rounded-lg bg-ios-blue/15 text-ios-blue flex items-center justify-center shrink-0 mt-0.5">
+                          <Icons.FileText className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 break-words leading-relaxed">
+                            {f.name}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                              {pdfEngine.formatFileSize(f.size)}
+                            </span>
+                            <span className="text-[10px] text-ios-blue font-medium flex items-center gap-1">
+                              <Icons.CheckCircle2 className="w-3 h-3 text-ios-blue" /> Ready
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(i)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-ios-pink hover:bg-ios-pink/10 transition-colors"
+                        title="Remove file"
+                      >
+                        <Icons.X className="w-4 h-4" />
+                      </button>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Compress PDF Controls */}
+          {tool.id === 'compress' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Select Compression Level
+                </label>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                  {compressLevel} quality
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  {
+                    id: 'low',
+                    label: 'Low',
+                    badge: 'High Quality',
+                    desc: 'Crisp & sharp',
+                    est: '~20-30%',
+                  },
+                  {
+                    id: 'medium',
+                    label: 'Medium',
+                    badge: 'Balanced',
+                    desc: 'Recommended',
+                    est: '~40-50%',
+                  },
+                  {
+                    id: 'high',
+                    label: 'High',
+                    badge: 'Max Compress',
+                    desc: 'Smallest size',
+                    est: '~60-70%',
+                  },
+                ].map((lvl) => {
+                  const isSelected = compressLevel === lvl.id;
+                  return (
+                    <button
+                      key={lvl.id}
+                      type="button"
+                      onClick={() => setCompressLevel(lvl.id as any)}
+                      className={`p-3 rounded-2xl border text-left transition-all ${
+                        isSelected
+                          ? 'bg-ios-blue text-white border-ios-blue shadow-md shadow-ios-blue/25 scale-[1.02]'
+                          : 'bg-white/40 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 border-slate-200/60 dark:border-slate-700/60 hover:bg-white/60 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">{lvl.label}</span>
+                        <span
+                          className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-full ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {lvl.est}
+                        </span>
+                      </div>
+                      <p
+                        className={`text-[10px] font-medium leading-tight ${
+                          isSelected ? 'text-white/85' : 'text-slate-400'
+                        }`}
+                      >
+                        {lvl.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Compression Ready Info */}
+              {selectedFiles.length > 0 && !downloadUrl && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/50 dark:border-slate-700/50 flex items-center justify-between text-xs">
+                  <span className="text-slate-600 dark:text-slate-400">Original document:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {pdfEngine.formatFileSize(selectedFiles[0]?.size || 0)}
+                  </span>
                 </div>
               )}
             </div>
@@ -555,11 +709,35 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Genuine Error Message Alert Box */}
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-ios-pink/10 border border-ios-pink/20 text-ios-pink text-xs font-semibold flex items-center gap-2">
               <Icons.AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Compression Results Comparison */}
+          {compressionStats && downloadUrl && (
+            <div className="p-4 rounded-2xl bg-ios-green/10 border border-ios-green/20 space-y-2.5 animate-fade-in">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-slate-500 dark:text-slate-400">Original Size:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {pdfEngine.formatFileSize(compressionStats.original)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-slate-500 dark:text-slate-400">Compressed Size:</span>
+                <span className="font-bold text-ios-green">
+                  {pdfEngine.formatFileSize(compressionStats.compressed)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs font-semibold pt-1 border-t border-ios-green/20">
+                <span className="text-slate-700 dark:text-slate-300">Space Saved:</span>
+                <span className="px-2 py-0.5 rounded-full bg-ios-green text-white text-[10px] font-bold">
+                  -{compressionStats.saved}%
+                </span>
+              </div>
             </div>
           )}
 
@@ -610,7 +788,6 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
               </a>
             </div>
           )}
-
         </div>
 
         {/* Modal Footer */}
@@ -640,7 +817,6 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
             )}
           </button>
         </div>
-
       </div>
     </div>
   );

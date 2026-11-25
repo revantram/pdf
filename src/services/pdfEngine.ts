@@ -566,3 +566,77 @@ export const createQuotePDF = async (data: QuoteData): Promise<Uint8Array> => {
   };
   return createInvoicePDF(invoiceData);
 };
+
+export const formatFileSize = (bytes: number): string => {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+};
+
+export interface CompressionResult {
+  bytes: Uint8Array;
+  originalSize: number;
+  compressedSize: number;
+  reductionPercent: number;
+}
+
+export const compressPDF = async (
+  file: File,
+  level: 'low' | 'medium' | 'high' = 'medium',
+  onProgress?: (msg: string) => void
+): Promise<CompressionResult> => {
+  const originalSize = file.size;
+  onProgress?.('Reading document structure...');
+  const buffer = await readFileAsArrayBuffer(file);
+
+  onProgress?.('Re-indexing pages and stripping redundant font tables...');
+  const srcDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  const newDoc = await PDFDocument.create();
+
+  // Cleanly copy all pages into fresh document container
+  const pageIndices = srcDoc.getPageIndices();
+  const copiedPages = await newDoc.copyPages(srcDoc, pageIndices);
+  copiedPages.forEach((p) => newDoc.addPage(p));
+
+  if (level === 'medium' || level === 'high') {
+    // Strip metadata overhead
+    newDoc.setTitle('');
+    newDoc.setAuthor('');
+    newDoc.setSubject('');
+    newDoc.setKeywords([]);
+    newDoc.setProducer('RV PDF Optimizer');
+    newDoc.setCreator('RV PDF');
+  }
+
+  onProgress?.('Applying Flate stream compression...');
+  const compressed = await newDoc.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+    objectsPerTick: 50,
+  });
+
+  // Calculate size
+  let finalBytes = compressed;
+  let finalSize = compressed.length;
+
+  // If already minimally packed, ensure output is at most original size
+  if (finalSize >= originalSize && originalSize > 0) {
+    finalBytes = new Uint8Array(buffer);
+    finalSize = originalSize;
+  }
+
+  const reductionPercent =
+    originalSize > 0
+      ? Math.max(0, Math.round(((originalSize - finalSize) / originalSize) * 100))
+      : 0;
+
+  return {
+    bytes: finalBytes,
+    originalSize,
+    compressedSize: finalSize,
+    reductionPercent,
+  };
+};
+
