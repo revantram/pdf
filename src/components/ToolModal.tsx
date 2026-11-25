@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as Icons from 'lucide-react';
 import type { PDFTool, RecentItem, InvoiceData, ReceiptData, QuoteData } from '../types';
 import * as pdfEngine from '../services/pdfEngine';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
 interface ToolModalProps {
   tool: PDFTool | null;
@@ -10,6 +11,8 @@ interface ToolModalProps {
 }
 
 export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecent }) => {
+  useModalScrollLock(Boolean(tool));
+
   if (!tool) return null;
 
   const IconComponent = (Icons as any)[tool.icon] || Icons.FileText;
@@ -283,12 +286,16 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-fade-in touch-none overscroll-none select-none"
       onClick={onClose}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
     >
       <div
-        className="liquid-glass w-full max-w-xl max-h-[90vh] rounded-[32px] overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15"
+        className="liquid-glass w-full max-w-xl max-h-[90vh] rounded-[32px] overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15 overscroll-contain touch-auto select-auto"
         onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/60">

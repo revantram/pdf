@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Clock, Download, Trash2, FileCheck } from 'lucide-react';
 import type { RecentItem } from '../types';
+import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
 interface RecentModalProps {
   isOpen: boolean;
@@ -10,11 +11,23 @@ interface RecentModalProps {
 }
 
 export const RecentModal: React.FC<RecentModalProps> = ({ isOpen, onClose, items, onClear }) => {
+  useModalScrollLock(isOpen);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-fade-in">
-      <div className="liquid-glass w-full max-w-lg rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md animate-fade-in touch-none overscroll-none select-none"
+      onClick={onClose}
+      onTouchMove={(e) => {
+        if (e.target === e.currentTarget) e.preventDefault();
+      }}
+    >
+      <div
+        className="liquid-glass w-full max-w-lg rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-white/60 dark:border-white/15 overscroll-contain touch-auto select-auto"
+        onClick={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800/60">

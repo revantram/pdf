@@ -138,3 +138,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(142, 142, 147, 0.6);
 }
+
+/* Modal Lock - Completely lock background touch gestures, scrolling & overscroll */
+html.modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+

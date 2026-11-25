@@ -71,18 +71,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.2
-          name: "RV PDF v1.0.2 - Android APK Release (Enhanced Compress PDF Flow)"
+          tag_name: v1.0.3
+          name: "RV PDF v1.0.3 - Android APK Release (Modal Background Interaction & Scroll Lock)"
           body: |
-            ### 📱 RV PDF v1.0.2 Android APK
+            ### 📱 RV PDF v1.0.3 Android APK
             
+            - 🔒 **Modal Background Interaction & Touch Lock**:
+              - Complete background touch gesture and overscroll lock when modals are open.
+              - Prevents underlying page shifts, accidental taps, or background drag during modal operations.
+              - Smooth, contained independent scrolling for modal content cards.
             - ⚡ **Enhanced Compress PDF Flow**:
               - Clean status indicators (removed misleading red alert box).
-              - Full readable file display with formatted size (e.g. 255.6 KB).
-              - Low / Medium / High compression level selector with estimated space reduction.
-              - Post-compression comparison card (Original vs Compressed size & % saved).
-              - Prominent one-tap direct download button.
-            - 🛡️ **Clean Centered Modal Behavior**: Background dimming/blur and backdrop interaction prevention.
+              - Full readable file display with formatted size.
+              - Low / Medium / High compression selector with live space savings.
+              - Direct post-compression download.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false
