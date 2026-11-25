@@ -1,5 +1,5 @@
 {
-  "appId": "com.rv.pdf",
+  "appId": "com.revantram.rvpdf",
   "appName": "RV PDF",
   "webDir": "dist",
   "server": {

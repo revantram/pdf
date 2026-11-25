@@ -86,19 +86,19 @@ jobs:
         continue-on-error: true
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.4
-          name: "RV PDF v1.0.4 - Android APK (Safe-Area Status Bar Fix & Mobile GPU Optimization)"
+          tag_name: v1.0.5
+          name: "RV PDF v1.0.5 - Tool Click Crash Fix & React ErrorBoundary"
           body: |
-            ### 📱 RV PDF v1.0.4 Android APK
+            ### 📱 RV PDF v1.0.5 Android APK
             
-            - 🛡️ **Safe-Area Status Bar Fix**: Added `safe-area-header` with `max(calc(env(safe-area-inset-top, 0px) + 8px), 42px)` so status bar indicators (clock, 5G, battery %, notifications) are never covered or clipped.
-            - ⚡ **Mobile GPU & 60fps Optimization**:
-              - Removed heavy 80px-90px Gaussian blur keyframe animations (`ambient-glow-1/2/3`) for buttery smooth scrolling and true deep OLED `#000000` blacks.
-              - Confined card hover transitions to `@media (hover: hover)` to eliminate mobile tap sticky lift.
-              - Added immediate active tap depression (`scale(0.97)`).
-            - 📐 **Clean 2×2 Grid & Modal UI**:
-              - Pure 2×2 tool card grid with zero marketing clutter.
-              - Compress PDF modal with subtle green ready badge and full readable file info.
+            - 🛠️ **Tool Click White Screen Crash Fixed**:
+              - Eliminated React hooks rule violation (conditional hook call in ToolModal).
+              - ToolModal now safely mounts on tool select with all hooks executing unconditionally.
+            - 🛡️ **React ErrorBoundary Added**:
+              - Wrapped root app and individual tool modals in an Error Boundary with an OLED-styled fallback card ("Back to Tools" / "Reload App").
+            - 📦 **Package Conflict Resolution**:
+              - Updated `appId` to `com.revantram.rvpdf` to resolve package conflict on devices.
+            - ⚡ **Mobile Performance & Clean 2×2 Layout**: Full liquid glass dark aesthetic preserved.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false

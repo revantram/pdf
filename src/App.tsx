@@ -3,6 +3,7 @@ import { Navbar } from './components/Navbar';
 import { ToolCard } from './components/ToolCard';
 import { ToolModal } from './components/ToolModal';
 import { RecentModal } from './components/RecentModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ALL_TOOLS } from './services/toolList';
 import type { ToolCategory, PDFTool, RecentItem } from './types';
 import { Search } from 'lucide-react';
@@ -138,11 +139,18 @@ export const App: React.FC = () => {
       </main>
 
       {/* Modals */}
-      <ToolModal
-        tool={activeTool}
-        onClose={() => setActiveTool(null)}
-        onSaveRecent={handleSaveRecent}
-      />
+      {activeTool && (
+        <ErrorBoundary
+          fallbackTitle={`${activeTool.title} Error`}
+          onReset={() => setActiveTool(null)}
+        >
+          <ToolModal
+            tool={activeTool}
+            onClose={() => setActiveTool(null)}
+            onSaveRecent={handleSaveRecent}
+          />
+        </ErrorBoundary>
+      )}
 
       <RecentModal
         isOpen={isRecentOpen}

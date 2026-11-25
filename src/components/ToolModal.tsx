@@ -5,15 +5,13 @@ import * as pdfEngine from '../services/pdfEngine';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
 
 interface ToolModalProps {
-  tool: PDFTool | null;
+  tool: PDFTool;
   onClose: () => void;
   onSaveRecent: (item: RecentItem) => void;
 }
 
 export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecent }) => {
-  useModalScrollLock(Boolean(tool));
-
-  if (!tool) return null;
+  useModalScrollLock(true);
 
   const IconComponent = (Icons as any)[tool.icon] || Icons.FileText;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -84,14 +82,6 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
     forReason: 'Full PDF Software License',
     notes: 'Payment confirmed and verified.',
   });
-
-  // Prevent background scrolling when modal is open
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
