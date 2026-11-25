@@ -1,0 +1,8 @@
+{
+  "appId": "com.rv.pdf",
+  "appName": "RV PDF",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

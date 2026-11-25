@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='25' fill='%23007AFF'/><path d='M30 25h25c15 0 25 10 25 25s-10 25-25 25h-5v-15h5c6 0 10-4 10-10s-4-10-10-10H30V25z' fill='white'/><path d='M30 25v50h15V25H30z' fill='white'/></svg>" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#007AFF" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>RV PDF - iOS Liquid Glass Private PDF Suite</title>
+    <meta name="description" content="100% Free, Private, Client-Side PDF Tools with iOS Liquid Glass UI. Merge, Split, Compress, Edit, Sign, Protect, OCR and Convert without uploads." />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#F2F2F7] dark:bg-[#000000] text-slate-900 dark:text-slate-100 min-h-screen selection:bg-ios-blue/20 selection:text-ios-blue antialiased overflow-x-hidden font-sans">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error:', err));
+        });
+      }
+    </script>
+  </body>
+</html>
