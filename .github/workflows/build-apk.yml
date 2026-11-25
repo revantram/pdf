@@ -35,11 +35,25 @@ jobs:
         run: |
           pnpm run build
 
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
+
+      - name: Setup Persistent Debug Keystore
+        run: |
+          mkdir -p keystore
+          if [ ! -f keystore/debug.keystore ]; then
+            keytool -genkey -v -keystore keystore/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add keystore/debug.keystore
+            git commit -m "ci: add persistent debug keystore for consistent app updates [skip ci]" || true
+            git push origin main || true
+          fi
+          mkdir -p ~/.android
+          cp keystore/debug.keystore ~/.android/debug.keystore
 
       - name: Setup Capacitor and Android Platform
         run: |
