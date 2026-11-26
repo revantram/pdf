@@ -87,15 +87,16 @@ jobs:
         continue-on-error: true
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.7
-          name: "RV PDF v1.0.7 - Native Android Downloads Bridge Fix"
+          tag_name: v1.0.8
+          name: "RV PDF v1.0.8 - Back Button Navigation & Native Android Downloads"
           body: |
-            ### 📱 RV PDF v1.0.7 Android APK
+            ### 📱 RV PDF v1.0.8 Android APK
             
-            - ⬇️ **Native Android Download Bridge Fixed**:
-              - Replaced WebView-incompatible `blob:` `<a download>` links with a chunked native Android `MediaStore.Downloads` bridge (`AndroidDownloader`).
-              - Handles large PDFs (40MB+) smoothly in 512KB chunks without memory issues.
-              - Saves output files directly into `Downloads/RV-PDF/` with native Android Toast confirmation.
+            - 🔙 **Android Back Button Navigation Fixed**:
+              - Pressing Back inside any tool modal, recent history, or active search now returns smoothly to the main menu instead of exiting the app.
+              - Implemented native `OnBackPressedCallback` bridge + browser `popstate` sync.
+            - ⬇️ **Native Android Download Bridge**:
+              - Chunked `MediaStore.Downloads` bridge saves files directly into `Downloads/RV-PDF/`.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false

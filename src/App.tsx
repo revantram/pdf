@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { ToolCard } from './components/ToolCard';
 import { ToolModal } from './components/ToolModal';
@@ -7,6 +7,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ALL_TOOLS } from './services/toolList';
 import type { ToolCategory, PDFTool, RecentItem } from './types';
 import { Search } from 'lucide-react';
+
+declare global {
+  interface Window {
+    __rvPdfHandleBack?: () => 'handled' | 'exit';
+  }
+}
 
 export const App: React.FC = () => {
   const [currentCategory, setCurrentCategory] = useState<ToolCategory>('all');
@@ -40,6 +46,57 @@ export const App: React.FC = () => {
   }, [isDark]);
 
   const toggleTheme = () => setIsDark(!isDark);
+
+  // Keep latest state refs for synchronous Android hardware/gesture back button handling
+  const stateRef = useRef({ activeTool, isRecentOpen, searchQuery, currentCategory });
+  stateRef.current = { activeTool, isRecentOpen, searchQuery, currentCategory };
+
+  useEffect(() => {
+    window.__rvPdfHandleBack = () => {
+      const s = stateRef.current;
+      if (s.activeTool) {
+        setActiveTool(null);
+        return 'handled';
+      }
+      if (s.isRecentOpen) {
+        setIsRecentOpen(false);
+        return 'handled';
+      }
+      if (s.searchQuery) {
+        setSearchQuery('');
+        return 'handled';
+      }
+      if (s.currentCategory !== 'all') {
+        setCurrentCategory('all');
+        return 'handled';
+      }
+      return 'exit';
+    };
+
+    const handlePopState = () => {
+      const s = stateRef.current;
+      if (s.activeTool) {
+        setActiveTool(null);
+      } else if (s.isRecentOpen) {
+        setIsRecentOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      delete window.__rvPdfHandleBack;
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // Push browser history state when opening a modal so back navigation stays inside the app
+  useEffect(() => {
+    if (activeTool || isRecentOpen) {
+      if (!window.history.state?.rvModal) {
+        window.history.pushState({ rvModal: true }, '');
+      }
+    }
+  }, [activeTool, isRecentOpen]);
 
   const handleSaveRecent = (item: RecentItem) => {
     setRecentItems((prev) => {
