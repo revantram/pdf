@@ -16,7 +16,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const IconComponent = (Icons as any)[tool.icon] || Icons.FileText;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // States
+  // General States
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
@@ -25,12 +25,13 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const [splitResults, setSplitResults] = useState<{ name: string; url: string }[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Compression specific state
+  // Compression state
   const [compressLevel, setCompressLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [compressionStats, setCompressionStats] = useState<{
     original: number;
     compressed: number;
     saved: number;
+    alreadyOptimized?: boolean;
   } | null>(null);
 
   // Tool Specific Options
@@ -39,7 +40,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const [splitRange, setSplitRange] = useState('1-3');
   const [pagesPerSplit, setPagesPerSplit] = useState(2);
   const [deletePagesInput, setDeletePagesInput] = useState('1');
-  const [reorderInput, setReorderInput] = useState('1, 2');
+  const [reorderInput, setReorderInput] = useState('2, 1');
   const [extractPagesInput, setExtractPagesInput] = useState('1');
   const [cropMargins, setCropMargins] = useState({ top: 5, right: 5, bottom: 5, left: 5 });
   const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
@@ -51,6 +52,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const [headerText, setHeaderText] = useState('Company Confidential');
   const [footerText, setFooterText] = useState('');
   const [pdfPassword, setPdfPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [metaTitle, setMetaTitle] = useState('');
   const [metaAuthor, setMetaAuthor] = useState('');
   const [metaSubject, setMetaSubject] = useState('');
@@ -83,6 +85,31 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
     notes: 'Payment confirmed and verified.',
   });
 
+  const [quote, setQuote] = useState<QuoteData>({
+    quoteNumber: 'QUO-' + Math.floor(1000 + Math.random() * 9000),
+    date: new Date().toISOString().split('T')[0],
+    validUntil: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    preparedFor: 'Valued Client',
+    preparedBy: 'RV Studio Pro',
+    items: [
+      { description: 'PDF Processing System Integration', quantity: 1, price: 1500 },
+      { description: 'Annual Software Maintenance & SLA', quantity: 1, price: 500 },
+    ],
+    taxRate: 18,
+    terms: 'Valid for 30 days. 50% deposit on order confirmation.',
+  });
+
+  // Pre-load metadata when file is selected for metadata tool
+  useEffect(() => {
+    if (tool.id === 'metadata' && selectedFiles[0]) {
+      pdfEngine.getPDFMetadata(selectedFiles[0]).then((meta) => {
+        setMetaTitle(meta.title);
+        setMetaAuthor(meta.author);
+        setMetaSubject(meta.subject);
+      }).catch(() => null);
+    }
+  }, [tool.id, selectedFiles]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
@@ -90,6 +117,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
       setErrorMsg(null);
       setDownloadUrl(null);
       setCompressionStats(null);
+      setSplitResults([]);
     }
   };
 
@@ -101,6 +129,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
       setErrorMsg(null);
       setDownloadUrl(null);
       setCompressionStats(null);
+      setSplitResults([]);
     }
   };
 
@@ -108,6 +137,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
     setDownloadUrl(null);
     setCompressionStats(null);
+    setSplitResults([]);
     setErrorMsg(null);
   };
 
@@ -120,6 +150,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
     try {
       let resultBytes: Uint8Array | null = null;
       let outName = 'processed.pdf';
+      let mimeType = 'application/pdf';
 
       if (tool.id === 'compress') {
         if (!selectedFiles[0]) throw new Error('Please select a PDF file to compress.');
@@ -131,6 +162,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
           original: res.originalSize,
           compressed: res.compressedSize,
           saved: res.reductionPercent,
+          alreadyOptimized: res.alreadyOptimized,
         });
         outName = `compressed_${selectedFiles[0].name}`;
       } else if (tool.id === 'merge') {
@@ -208,10 +240,25 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         if (selectedFiles.length === 0) throw new Error('Please select image files (JPG, PNG).');
         resultBytes = await pdfEngine.imagesToPDF(selectedFiles);
         outName = 'images_converted.pdf';
-      } else if (tool.id === 'repair') {
-        if (!selectedFiles[0]) throw new Error('Please select a PDF file to repair.');
-        resultBytes = await pdfEngine.repairPDF(selectedFiles[0]);
-        outName = `repaired_${selectedFiles[0].name}`;
+      } else if (tool.id === 'pdf-to-image') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to convert.');
+        const res = await pdfEngine.pdfToImages(selectedFiles[0], (m) => setProgressMsg(m));
+        resultBytes = res.zipBytes;
+        outName = `${selectedFiles[0].name.replace(/\.pdf$/i, '')}_images.zip`;
+        mimeType = 'application/zip';
+      } else if (tool.id === 'pdf-to-word') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to convert.');
+        resultBytes = await pdfEngine.pdfToWord(selectedFiles[0], (m) => setProgressMsg(m));
+        outName = `${selectedFiles[0].name.replace(/\.pdf$/i, '')}.docx`;
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (tool.id === 'protect') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to protect.');
+        resultBytes = await pdfEngine.protectPDF(selectedFiles[0], pdfPassword);
+        outName = `protected_${selectedFiles[0].name}`;
+      } else if (tool.id === 'unlock') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to unlock.');
+        resultBytes = await pdfEngine.unlockPDF(selectedFiles[0], pdfPassword);
+        outName = `unlocked_${selectedFiles[0].name}`;
       } else if (tool.id === 'sanitize') {
         if (!selectedFiles[0]) throw new Error('Please select a PDF file to sanitize.');
         resultBytes = await pdfEngine.sanitizePDF(selectedFiles[0]);
@@ -224,6 +271,10 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
           subject: metaSubject,
         });
         outName = `metadata_${selectedFiles[0].name}`;
+      } else if (tool.id === 'repair') {
+        if (!selectedFiles[0]) throw new Error('Please select a PDF file to repair.');
+        resultBytes = await pdfEngine.repairPDF(selectedFiles[0]);
+        outName = `repaired_${selectedFiles[0].name}`;
       } else if (tool.id === 'invoice-maker') {
         resultBytes = await pdfEngine.createInvoicePDF(invoice);
         outName = `Invoice_${invoice.invoiceNumber}.pdf`;
@@ -231,27 +282,16 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         resultBytes = await pdfEngine.createReceiptPDF(receipt);
         outName = `Receipt_${receipt.receiptNumber}.pdf`;
       } else if (tool.id === 'quote-maker') {
-        const quoteData: QuoteData = {
-          quoteNumber: 'QUO-' + Math.floor(1000 + Math.random() * 9000),
-          date: invoice.date,
-          validUntil: invoice.dueDate,
-          preparedFor: invoice.toName,
-          preparedBy: invoice.fromName,
-          items: invoice.items,
-          taxRate: invoice.taxRate,
-          terms: invoice.notes,
-        };
-        resultBytes = await pdfEngine.createQuotePDF(quoteData);
-        outName = `Quote_${quoteData.quoteNumber}.pdf`;
+        resultBytes = await pdfEngine.createQuotePDF(quote);
+        outName = `Quote_${quote.quoteNumber}.pdf`;
       } else {
-        // Safe generic fallback
         if (!selectedFiles[0]) throw new Error('Please select a file to process.');
         resultBytes = await pdfEngine.repairPDF(selectedFiles[0]);
         outName = `processed_${selectedFiles[0].name}`;
       }
 
       if (resultBytes) {
-        const blob = new Blob([resultBytes], { type: 'application/pdf' });
+        const blob = new Blob([resultBytes], { type: mimeType });
         const url = URL.createObjectURL(blob);
         setDownloadUrl(url);
         setDownloadFileName(outName);
@@ -315,7 +355,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-5">
-          {/* File Upload Area (if not a generator tool like Invoice) */}
+          {/* File Upload Area (if not a creator tool) */}
           {tool.accepts !== 'creator' && (
             <div>
               <div
@@ -338,10 +378,10 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                 <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                   {selectedFiles.length > 0
                     ? `${selectedFiles.length} file(s) selected`
-                    : 'Tap or drop PDF here'}
+                    : 'Tap or drop file here'}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Local client-side processing only
+                  100% Client-Side Private • Instant Processing
                 </p>
               </div>
 
@@ -365,16 +405,15 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                               {pdfEngine.formatFileSize(f.size)}
                             </span>
-                            <span className="text-[10px] text-ios-blue font-medium flex items-center gap-1">
-                              <Icons.CheckCircle2 className="w-3 h-3 text-ios-blue" /> Ready
+                            <span className="text-[10px] text-slate-400">
+                              Ready
                             </span>
                           </div>
                         </div>
                       </div>
                       <button
-                        type="button"
                         onClick={() => handleRemoveFile(i)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-ios-pink hover:bg-ios-pink/10 transition-colors"
+                        className="p-1 rounded-lg text-slate-400 hover:text-ios-pink hover:bg-ios-pink/10 transition-colors shrink-0"
                         title="Remove file"
                       >
                         <Icons.X className="w-4 h-4" />
@@ -394,7 +433,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   Select Compression Level
                 </label>
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                  {compressLevel} quality
+                  {compressLevel} mode
                 </span>
               </div>
 
@@ -404,22 +443,22 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                     id: 'low',
                     label: 'Low',
                     badge: 'High Quality',
-                    desc: 'Crisp & sharp',
+                    desc: 'Crisp vector & font optimization',
                     est: '~20-30%',
                   },
                   {
                     id: 'medium',
                     label: 'Medium',
-                    badge: 'Balanced',
-                    desc: 'Recommended',
+                    badge: 'Recommended',
+                    desc: 'Balanced clarity & size',
                     est: '~40-50%',
                   },
                   {
                     id: 'high',
                     label: 'High',
-                    badge: 'Max Compress',
-                    desc: 'Smallest size',
-                    est: '~60-70%',
+                    badge: 'Max Reduction',
+                    desc: 'Smallest size for email/sharing',
+                    est: '~60-75%',
                   },
                 ].map((lvl) => {
                   const isSelected = compressLevel === lvl.id;
@@ -458,7 +497,6 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                 })}
               </div>
 
-              {/* Compression Ready Info */}
               {selectedFiles.length > 0 && !downloadUrl && (
                 <div className="px-3.5 py-2.5 rounded-xl bg-ios-green/10 dark:bg-ios-green/15 border border-ios-green/30 flex items-center justify-between text-xs animate-fade-in">
                   <div className="flex items-center gap-2 text-ios-green font-semibold">
@@ -473,7 +511,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
             </div>
           )}
 
-          {/* Tool-specific configuration controls */}
+          {/* Split PDF Controls */}
           {tool.id === 'split' && (
             <div className="space-y-3">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Split Method</label>
@@ -498,7 +536,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   placeholder="e.g. 1-3, 5, 7"
                   value={splitRange}
                   onChange={(e) => setSplitRange(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
                 />
               )}
               {splitMode === 'size' && (
@@ -507,12 +545,13 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   min={1}
                   value={pagesPerSplit}
                   onChange={(e) => setPagesPerSplit(parseInt(e.target.value) || 1)}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
                 />
               )}
             </div>
           )}
 
+          {/* Rotate Controls */}
           {tool.id === 'rotate' && (
             <div className="space-y-3">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Rotation Angle</label>
@@ -534,6 +573,58 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
             </div>
           )}
 
+          {/* Delete Pages Controls */}
+          {tool.id === 'delete' && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Pages to Delete
+              </label>
+              <input
+                type="text"
+                value={deletePagesInput}
+                onChange={(e) => setDeletePagesInput(e.target.value)}
+                placeholder="e.g. 1, 3, 5"
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 font-mono"
+              />
+              <p className="text-[10px] text-slate-400">Separate page numbers by commas.</p>
+            </div>
+          )}
+
+          {/* Reorder Pages Controls */}
+          {tool.id === 'reorder' && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                New Page Order
+              </label>
+              <input
+                type="text"
+                value={reorderInput}
+                onChange={(e) => setReorderInput(e.target.value)}
+                placeholder="e.g. 2, 1, 3, 4"
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 font-mono"
+              />
+              <p className="text-[10px] text-slate-400">Enter the desired page sequence separated by commas.</p>
+            </div>
+          )}
+
+          {/* Extract Pages Controls */}
+          {tool.id === 'extract' && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Pages to Extract
+              </label>
+              <input
+                type="text"
+                value={extractPagesInput}
+                onChange={(e) => setExtractPagesInput(e.target.value)}
+                placeholder="e.g. 1, 2, 4"
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 font-mono"
+              />
+              <p className="text-[10px] text-slate-400">Pages will be extracted into a new document.</p>
+            </div>
+          )}
+
+          {/* Watermark Controls */}
           {tool.id === 'watermark' && (
             <div className="space-y-4">
               <div>
@@ -542,13 +633,13 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   type="text"
                   value={watermarkText}
                   onChange={(e) => setWatermarkText(e.target.value)}
-                  className="mt-1 w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Opacity: {Math.round(watermarkOpacity * 100)}%
+                    Opacity ({Math.round(watermarkOpacity * 100)}%)
                   </label>
                   <input
                     type="range"
@@ -557,12 +648,12 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                     step="0.05"
                     value={watermarkOpacity}
                     onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
-                    className="w-full mt-2"
+                    className="w-full accent-ios-blue mt-2"
                   />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Rotation: {watermarkRotation}°
+                    Angle ({watermarkRotation}°)
                   </label>
                   <input
                     type="range"
@@ -571,43 +662,212 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                     step="5"
                     value={watermarkRotation}
                     onChange={(e) => setWatermarkRotation(parseInt(e.target.value))}
-                    className="w-full mt-2"
+                    className="w-full accent-ios-blue mt-2"
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {tool.id === 'delete' && (
-            <div>
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Pages to Delete (comma separated)</label>
-              <input
-                type="text"
-                placeholder="e.g. 1, 3, 5"
-                value={deletePagesInput}
-                onChange={(e) => setDeletePagesInput(e.target.value)}
-                className="mt-1 w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50"
-              />
+          {/* Crop Controls */}
+          {tool.id === 'crop' && (
+            <div className="space-y-3">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Crop Margins (%)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+                  <div key={side} className="p-2.5 rounded-xl bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">{side}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={45}
+                      value={cropMargins[side]}
+                      onChange={(e) =>
+                        setCropMargins({ ...cropMargins, [side]: Math.min(45, Math.max(0, parseInt(e.target.value) || 0)) })
+                      }
+                      className="w-full text-xs font-bold mt-1 bg-transparent focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {tool.id === 'crop' && (
-            <div className="grid grid-cols-2 gap-3">
-              {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
-                <div key={side}>
-                  <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 capitalize">
-                    {side} Margin ({cropMargins[side]}%)
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="30"
-                    value={cropMargins[side]}
-                    onChange={(e) => setCropMargins({ ...cropMargins, [side]: parseInt(e.target.value) || 0 })}
-                    className="w-full mt-1"
-                  />
-                </div>
-              ))}
+          {/* Page Numbers Controls */}
+          {tool.id === 'page-numbers' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Numbering Format</label>
+                <select
+                  value={pageNumFormat}
+                  onChange={(e) => setPageNumFormat(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                >
+                  <option value="Page {n} of {total}">Page &#123;n&#125; of &#123;total&#125;</option>
+                  <option value="{n} / {total}">&#123;n&#125; / &#123;total&#125;</option>
+                  <option value="- {n} -">- &#123;n&#125; -</option>
+                  <option value="{n}">Page &#123;n&#125;</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Position</label>
+                <select
+                  value={pageNumPosition}
+                  onChange={(e) => setPageNumPosition(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                >
+                  <option value="bottom-center">Bottom Center</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="top-right">Top Right</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Header & Footer Controls */}
+          {tool.id === 'header-footer' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Header Text (Top)</label>
+                <input
+                  type="text"
+                  value={headerText}
+                  onChange={(e) => setHeaderText(e.target.value)}
+                  placeholder="e.g. Confidential • Internal Use Only"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Footer Text (Bottom)</label>
+                <input
+                  type="text"
+                  value={footerText}
+                  onChange={(e) => setFooterText(e.target.value)}
+                  placeholder="Leave empty for auto page numbers"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Password Protection Controls */}
+          {(tool.id === 'protect' || tool.id === 'unlock') && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {tool.id === 'protect' ? 'Set Document Password' : 'Enter Password to Unlock'}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={pdfPassword}
+                  onChange={(e) => setPdfPassword(e.target.value)}
+                  placeholder="Enter secure password"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  {showPassword ? <Icons.EyeOff className="w-4 h-4" /> : <Icons.Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {tool.id === 'protect'
+                  ? 'Password encryption is processed locally on your device.'
+                  : 'Enter the password originally set on the document.'}
+              </p>
+            </div>
+          )}
+
+          {/* PDF Metadata Controls */}
+          {tool.id === 'metadata' && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Document Title</label>
+                <input
+                  type="text"
+                  value={metaTitle}
+                  onChange={(e) => setMetaTitle(e.target.value)}
+                  placeholder="e.g. Annual Financial Report"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Author</label>
+                <input
+                  type="text"
+                  value={metaAuthor}
+                  onChange={(e) => setMetaAuthor(e.target.value)}
+                  placeholder="e.g. John Doe"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Subject / Category</label>
+                <input
+                  type="text"
+                  value={metaSubject}
+                  onChange={(e) => setMetaSubject(e.target.value)}
+                  placeholder="e.g. Official Documentation"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* PDF to Word Info Card */}
+          {tool.id === 'pdf-to-word' && (
+            <div className="p-3.5 rounded-2xl bg-ios-blue/10 border border-ios-blue/20 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+              <p className="font-bold text-ios-blue flex items-center gap-1.5">
+                <Icons.FileCode className="w-4 h-4" /> Word (.docx) Exporter
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Extracts selectable text and page layouts directly into standard Microsoft Word (.docx) format.
+              </p>
+            </div>
+          )}
+
+          {/* PDF to Image Info Card */}
+          {tool.id === 'pdf-to-image' && (
+            <div className="p-3.5 rounded-2xl bg-ios-green/10 border border-ios-green/20 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+              <p className="font-bold text-ios-green flex items-center gap-1.5">
+                <Icons.FileImage className="w-4 h-4" /> High-Resolution Image Exporter
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Extracts high-resolution images across all pages and packages them into a clean ZIP archive.
+              </p>
+            </div>
+          )}
+
+          {/* Flatten PDF Info Card */}
+          {tool.id === 'flatten' && (
+            <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-800/70 border border-slate-200/50 dark:border-slate-700/50 text-xs space-y-1">
+              <p className="font-bold text-slate-800 dark:text-slate-200">Permanent Form & Annotation Flattening</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Merges fillable fields, signatures, and stamps into static non-editable page layers.
+              </p>
+            </div>
+          )}
+
+          {/* Sanitize PDF Info Card */}
+          {tool.id === 'sanitize' && (
+            <div className="p-3.5 rounded-2xl bg-ios-purple/10 border border-ios-purple/20 text-xs space-y-1">
+              <p className="font-bold text-ios-purple">Total Privacy Sanitization</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Permanently wipes all document creation history, hidden metadata, creator names, and tracking tags.
+              </p>
+            </div>
+          )}
+
+          {/* Repair PDF Info Card */}
+          {tool.id === 'repair' && (
+            <div className="p-3.5 rounded-2xl bg-ios-yellow/10 border border-ios-yellow/20 text-xs space-y-1">
+              <p className="font-bold text-ios-yellow">Structural Stream & Cross-Reference Repair</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Rebuilds broken xref tables, restores unreadable page dictionaries, and recovers corrupted PDF containers.
+              </p>
             </div>
           )}
 
@@ -634,30 +894,13 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-[11px] font-semibold">Item 1 Description</label>
-                <input
-                  type="text"
-                  value={invoice.items[0]?.description || ''}
-                  onChange={(e) => {
-                    const newItems = [...invoice.items];
-                    newItems[0] = { ...newItems[0], description: e.target.value };
-                    setInvoice({ ...invoice, items: newItems });
-                  }}
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
-                />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-semibold">Amount ($)</label>
+                  <label className="text-[11px] font-semibold">Invoice #</label>
                   <input
-                    type="number"
-                    value={invoice.items[0]?.price || 0}
-                    onChange={(e) => {
-                      const newItems = [...invoice.items];
-                      newItems[0] = { ...newItems[0], price: parseFloat(e.target.value) || 0 };
-                      setInvoice({ ...invoice, items: newItems });
-                    }}
+                    type="text"
+                    value={invoice.invoiceNumber}
+                    onChange={(e) => setInvoice({ ...invoice, invoiceNumber: e.target.value })}
                     className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
                   />
                 </div>
@@ -709,6 +952,52 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
             </div>
           )}
 
+          {/* Quote & Estimate Creator Fields */}
+          {tool.id === 'quote-maker' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold">Prepared By</label>
+                  <input
+                    type="text"
+                    value={quote.preparedBy}
+                    onChange={(e) => setQuote({ ...quote, preparedBy: e.target.value })}
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold">Prepared For (Client)</label>
+                  <input
+                    type="text"
+                    value={quote.preparedFor}
+                    onChange={(e) => setQuote({ ...quote, preparedFor: e.target.value })}
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-semibold">Quote #</label>
+                  <input
+                    type="text"
+                    value={quote.quoteNumber}
+                    onChange={(e) => setQuote({ ...quote, quoteNumber: e.target.value })}
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold">Estimated Tax (%)</label>
+                  <input
+                    type="number"
+                    value={quote.taxRate}
+                    onChange={(e) => setQuote({ ...quote, taxRate: parseFloat(e.target.value) || 0 })}
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Genuine Error Message Alert Box */}
           {errorMsg && (
             <div className="p-3.5 rounded-2xl bg-ios-pink/10 border border-ios-pink/20 text-ios-pink text-xs font-semibold flex items-center gap-2">
@@ -727,16 +1016,22 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-slate-500 dark:text-slate-400">Compressed Size:</span>
+                <span className="text-slate-500 dark:text-slate-400">Optimized Size:</span>
                 <span className="font-bold text-ios-green">
                   {pdfEngine.formatFileSize(compressionStats.compressed)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs font-semibold pt-1 border-t border-ios-green/20">
-                <span className="text-slate-700 dark:text-slate-300">Space Saved:</span>
-                <span className="px-2 py-0.5 rounded-full bg-ios-green text-white text-[10px] font-bold">
-                  -{compressionStats.saved}%
-                </span>
+                <span className="text-slate-700 dark:text-slate-300">Space Reduction:</span>
+                {compressionStats.alreadyOptimized || compressionStats.saved === 0 ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-bold">
+                    Already at Minimum Size
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-ios-green text-white text-[10px] font-bold">
+                    -{compressionStats.saved}% Saved
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -745,16 +1040,16 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
           {splitResults.length > 0 && (
             <div className="p-4 rounded-2xl bg-ios-green/10 border border-ios-green/20 space-y-2">
               <p className="text-xs font-bold text-ios-green flex items-center gap-1.5">
-                <Icons.CheckCircle2 className="w-4 h-4" /> Successfully generated {splitResults.length} files:
+                <Icons.CheckCircle2 className="w-4 h-4" /> Generated {splitResults.length} split files:
               </p>
               <div className="max-h-40 overflow-y-auto space-y-1.5">
                 {splitResults.map((sr, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60 dark:bg-slate-800/60">
-                    <span className="truncate max-w-[70%]">{sr.name}</span>
+                    <span className="truncate max-w-[70%] font-medium">{sr.name}</span>
                     <a
                       href={sr.url}
                       download={sr.name}
-                      className="px-2.5 py-1 rounded-md bg-ios-blue text-white text-[11px] font-semibold"
+                      className="px-2.5 py-1 rounded-md bg-ios-blue text-white text-[11px] font-semibold shadow-sm"
                     >
                       Download
                     </a>
@@ -767,9 +1062,9 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
           {/* Download Ready Banner */}
           {downloadUrl && (
             <div className="p-4 rounded-2xl bg-ios-green/10 border border-ios-green/20 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Icons.CheckCircle2 className="w-5 h-5 text-ios-green shrink-0" />
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-bold text-slate-800 dark:text-white">
                     Processing Complete!
                   </p>
@@ -781,10 +1076,10 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
               <a
                 href={downloadUrl}
                 download={downloadFileName}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ios-green hover:bg-ios-green/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-ios-green/30"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ios-green hover:bg-ios-green/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-ios-green/30 shrink-0"
               >
                 <Icons.Download className="w-4 h-4" />
-                Download PDF
+                Download Output
               </a>
             </div>
           )}

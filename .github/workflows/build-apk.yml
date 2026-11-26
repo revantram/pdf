@@ -86,19 +86,20 @@ jobs:
         continue-on-error: true
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.5
-          name: "RV PDF v1.0.5 - Tool Click Crash Fix & React ErrorBoundary"
+          tag_name: v1.0.6
+          name: "RV PDF v1.0.6 - Full Real Tool Workflows & Multi-Level Compression"
           body: |
-            ### 📱 RV PDF v1.0.5 Android APK
+            ### 📱 RV PDF v1.0.6 Android APK
             
-            - 🛠️ **Tool Click White Screen Crash Fixed**:
-              - Eliminated React hooks rule violation (conditional hook call in ToolModal).
-              - ToolModal now safely mounts on tool select with all hooks executing unconditionally.
-            - 🛡️ **React ErrorBoundary Added**:
-              - Wrapped root app and individual tool modals in an Error Boundary with an OLED-styled fallback card ("Back to Tools" / "Reload App").
-            - 📦 **Package Conflict Resolution**:
-              - Updated `appId` to `com.revantram.rvpdf` to resolve package conflict on devices.
-            - ⚡ **Mobile Performance & Clean 2×2 Layout**: Full liquid glass dark aesthetic preserved.
+            - 🚀 **All 23+ PDF Tools Fully Working & Audited**:
+              - Merge, Split, Reorder, Rotate, Delete, Extract, Crop, Watermark, Page Numbers, Header & Footer, Flatten.
+              - Image to PDF, PDF to Image (High-Res ZIP extract), PDF to Word (Real DOCX OpenXML generation via JSZip).
+              - Protect PDF (Password Protection), Unlock PDF (Decryption), Sanitize PDF, PDF Metadata.
+              - Invoice Maker, Receipt Maker, Quote & Estimate Maker with live calculation.
+            - ⚡ **True Multi-Level PDF Compression**:
+              - Image stream re-encoding, object stream Flate bundling, and metadata stripping across Low / Medium / High modes.
+              - Honest, accurate size reporting: avoids misleading `-0%` when files are already minimal.
+            - 🛡️ **Zero White-Screen Crashes**: Complete React ErrorBoundary protection across all modals.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false

@@ -55,3 +55,12 @@ export interface QuoteData {
   taxRate: number;
   terms: string;
 }
+
+export interface CompressionResult {
+  bytes: Uint8Array;
+  originalSize: number;
+  compressedSize: number;
+  reductionPercent: number;
+  alreadyOptimized: boolean;
+}
+
