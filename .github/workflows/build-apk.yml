@@ -61,6 +61,7 @@ jobs:
           pnpm add -D @capacitor/cli @capacitor/android
           npx cap add android || true
           npx cap sync android
+          cp android-override/MainActivity.java android/app/src/main/java/com/revantram/rvpdf/MainActivity.java
 
       - name: Build Android Debug APK
         run: |
@@ -86,20 +87,15 @@ jobs:
         continue-on-error: true
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.6
-          name: "RV PDF v1.0.6 - Full Real Tool Workflows & Multi-Level Compression"
+          tag_name: v1.0.7
+          name: "RV PDF v1.0.7 - Native Android Downloads Bridge Fix"
           body: |
-            ### 📱 RV PDF v1.0.6 Android APK
+            ### 📱 RV PDF v1.0.7 Android APK
             
-            - 🚀 **All 23+ PDF Tools Fully Working & Audited**:
-              - Merge, Split, Reorder, Rotate, Delete, Extract, Crop, Watermark, Page Numbers, Header & Footer, Flatten.
-              - Image to PDF, PDF to Image (High-Res ZIP extract), PDF to Word (Real DOCX OpenXML generation via JSZip).
-              - Protect PDF (Password Protection), Unlock PDF (Decryption), Sanitize PDF, PDF Metadata.
-              - Invoice Maker, Receipt Maker, Quote & Estimate Maker with live calculation.
-            - ⚡ **True Multi-Level PDF Compression**:
-              - Image stream re-encoding, object stream Flate bundling, and metadata stripping across Low / Medium / High modes.
-              - Honest, accurate size reporting: avoids misleading `-0%` when files are already minimal.
-            - 🛡️ **Zero White-Screen Crashes**: Complete React ErrorBoundary protection across all modals.
+            - ⬇️ **Native Android Download Bridge Fixed**:
+              - Replaced WebView-incompatible `blob:` `<a download>` links with a chunked native Android `MediaStore.Downloads` bridge (`AndroidDownloader`).
+              - Handles large PDFs (40MB+) smoothly in 512KB chunks without memory issues.
+              - Saves output files directly into `Downloads/RV-PDF/` with native Android Toast confirmation.
           files: output/RV-PDF.apk
           draft: false
           prerelease: false

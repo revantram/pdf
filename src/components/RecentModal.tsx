@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Clock, Download, Trash2, FileCheck } from 'lucide-react';
 import type { RecentItem } from '../types';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
+import { downloadBlobOrUrl } from '../utils/download';
 
 interface RecentModalProps {
   isOpen: boolean;
@@ -70,14 +71,14 @@ export const RecentModal: React.FC<RecentModalProps> = ({ isOpen, onClose, items
                 </div>
 
                 {item.blobUrl && (
-                  <a
-                    href={item.blobUrl}
-                    download={item.name}
+                  <button
+                    type="button"
+                    onClick={() => downloadBlobOrUrl(item.blobUrl!, item.name)}
                     className="p-2 rounded-xl bg-ios-blue/15 hover:bg-ios-blue/25 text-ios-blue transition-colors shrink-0"
                     title="Download Again"
                   >
                     <Download className="w-4 h-4" />
-                  </a>
+                  </button>
                 )}
               </div>
             ))

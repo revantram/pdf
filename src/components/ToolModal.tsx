@@ -3,6 +3,7 @@ import * as Icons from 'lucide-react';
 import type { PDFTool, RecentItem, InvoiceData, ReceiptData, QuoteData } from '../types';
 import * as pdfEngine from '../services/pdfEngine';
 import { useModalScrollLock } from '../hooks/useModalScrollLock';
+import { downloadBlobOrUrl } from '../utils/download';
 
 interface ToolModalProps {
   tool: PDFTool;
@@ -22,6 +23,9 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
   const [progressMsg, setProgressMsg] = useState('');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadFileName, setDownloadFileName] = useState('');
+  const [downloadMimeType, setDownloadMimeType] = useState('application/pdf');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadStatusMsg, setDownloadStatusMsg] = useState<string | null>(null);
   const [splitResults, setSplitResults] = useState<{ name: string; url: string }[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -295,6 +299,8 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
         const url = URL.createObjectURL(blob);
         setDownloadUrl(url);
         setDownloadFileName(outName);
+        setDownloadMimeType(mimeType);
+        setDownloadStatusMsg(null);
 
         // Record in recent history
         onSaveRecent({
@@ -311,6 +317,21 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
       setErrorMsg(err.message || 'An error occurred during local processing.');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDownload = async (url: string, fileName: string, mime = 'application/pdf') => {
+    setIsDownloading(true);
+    setErrorMsg(null);
+    setDownloadStatusMsg(null);
+    try {
+      const res = await downloadBlobOrUrl(url, fileName, mime);
+      setDownloadStatusMsg(res.message);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      setErrorMsg(err.message || 'Failed to save file.');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -1046,13 +1067,14 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
                 {splitResults.map((sr, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs p-2 rounded-lg bg-white/60 dark:bg-slate-800/60">
                     <span className="truncate max-w-[70%] font-medium">{sr.name}</span>
-                    <a
-                      href={sr.url}
-                      download={sr.name}
-                      className="px-2.5 py-1 rounded-md bg-ios-blue text-white text-[11px] font-semibold shadow-sm"
+                    <button
+                      type="button"
+                      disabled={isDownloading}
+                      onClick={() => handleDownload(sr.url, sr.name, 'application/pdf')}
+                      className="px-2.5 py-1 rounded-md bg-ios-blue text-white text-[11px] font-semibold shadow-sm disabled:opacity-50"
                     >
-                      Download
-                    </a>
+                      {isDownloading ? 'Saving...' : 'Download'}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1061,26 +1083,44 @@ export const ToolModal: React.FC<ToolModalProps> = ({ tool, onClose, onSaveRecen
 
           {/* Download Ready Banner */}
           {downloadUrl && (
-            <div className="p-4 rounded-2xl bg-ios-green/10 border border-ios-green/20 flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Icons.CheckCircle2 className="w-5 h-5 text-ios-green shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-800 dark:text-white">
-                    Processing Complete!
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate max-w-xs">
-                    {downloadFileName}
-                  </p>
+            <div className="p-4 rounded-2xl bg-ios-green/10 border border-ios-green/20 space-y-3 animate-fade-in">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0 w-full sm:w-auto">
+                  <Icons.CheckCircle2 className="w-5 h-5 text-ios-green shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-800 dark:text-white">
+                      Processing Complete!
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate max-w-xs">
+                      {downloadFileName}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  disabled={isDownloading}
+                  onClick={() => handleDownload(downloadUrl, downloadFileName, downloadMimeType)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ios-green hover:bg-ios-green/90 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-ios-green/30 shrink-0 active:scale-95 transition-transform"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Icons.Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Download className="w-4 h-4" />
+                      <span>Download Output</span>
+                    </>
+                  )}
+                </button>
               </div>
-              <a
-                href={downloadUrl}
-                download={downloadFileName}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-ios-green hover:bg-ios-green/90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-ios-green/30 shrink-0"
-              >
-                <Icons.Download className="w-4 h-4" />
-                Download Output
-              </a>
+              {downloadStatusMsg && (
+                <p className="text-[11px] font-semibold text-ios-green flex items-center gap-1.5 pt-1 border-t border-ios-green/15">
+                  <Icons.FolderCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>{downloadStatusMsg}</span>
+                </p>
+              )}
             </div>
           )}
         </div>
